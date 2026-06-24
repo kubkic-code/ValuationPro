@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ValuationPro | Kalkulačka Vnitřní Hodnoty</title>
+    <meta name="description" content="Profesionální kalkulačka vnitřní hodnoty akcií. Modely DCF, Graham, Peter Lynch a DDM.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome 6 Free (cdnjs.cloudflare.com – extrémně spolehlivý) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+
+        <!-- Boční panel -->
+        <aside class="sidebar glass-panel">
+            <div class="sidebar-header">
+                <i class="fa-solid fa-arrow-trend-up logo-icon"></i>
+                <h2>Valuation<span class="highlight">Pro</span></h2>
+            </div>
+
+            <!-- Vyhledávání -->
+            <div class="search-wrapper">
+                <div class="search-container">
+                    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                    <input type="text" id="searchInput" placeholder="Hledat akcii (např. AAPL)..." autocomplete="off">
+                    <div class="search-suggestions hidden" id="searchSuggestions"></div>
+                </div>
+            </div>
+
+            <!-- Portfolio sekce -->
+            <div class="watchlist-section portfolio-section">
+                <h3>Moje Portfolio <span class="badge" id="portfolioCount">0</span></h3>
+                <ul class="stock-list" id="portfolioList"></ul>
+            </div>
+
+            <!-- Oddělovač -->
+            <div class="sidebar-divider"></div>
+
+            <!-- Nedávno hledané -->
+            <div class="watchlist-section history-section">
+                <h3>Nedávno Hledané</h3>
+                <ul class="stock-list" id="historyList"></ul>
+            </div>
+
+            <!-- Spodní tlačítka v sidebaru -->
+            <div class="sidebar-footer">
+                <button class="btn btn-primary full-width" id="analyzeAllBtn" style="margin-bottom: 0.5rem;">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                    Obnovit Portfolio
+                </button>
+                <a href="https://www.buymeacoffee.com/VASE_UZIVATELSKE_JMENO" target="_blank" class="btn btn-coffee full-width" id="buyMeCoffeeBtn" title="Podpořit aplikaci drobným dýškem">
+                    <i class="fa-solid fa-mug-hot"></i>
+                    Podpořit vývoj
+                </a>
+            </div>
+        </aside>
+
+        <!-- Hlavní obsah -->
+        <main class="dashboard">
+            <header class="topbar glass-panel">
+                <div class="header-titles">
+                    <h1>Přehled Analýzy</h1>
+                    <p class="subtitle">Modely: DCF &amp; Benjamin Graham</p>
+                </div>
+                <div class="actions">
+                    <button class="btn btn-icon" id="themeToggleBtn" title="Přepnout motiv">
+                        <i class="fa-solid fa-moon"></i>
+                    </button>
+                    <button class="btn btn-icon" id="btnSettings" title="Nastavení">
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="content-area">
+                <!-- Detail akcie -->
+                <section class="stock-detail hidden glass-panel" id="stockDetailPanel">
+                    <div class="detail-header">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <h2 id="detailTicker">AAPL</h2>
+                                <button id="btnTogglePortfolio" class="btn-icon btn-star" title="Přidat do Portfolia">
+                                    <i class="fa-regular fa-star"></i>
+                                </button>
+                            </div>
+                            <p class="company-name">
+                                <span id="detailName">Apple Inc.</span>
+                                <button id="btnRename" class="action-btn" title="Přejmenovat">
+                                    <i class="fa-solid fa-pencil"></i>
+                                </button>
+                            </p>
+                        </div>
+                        <div class="current-price">
+                            <span class="label">Aktuální cena</span>
+                            <span class="value" id="detailPrice">$150.00</span>
+                            <div class="report-date-row">
+                                Výkaz z: <span id="detailReportDate">--</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Nastavení parametrů -->
+                    <div class="settings-panel">
+                        <div class="setting-group">
+                            <label>FCF (mil. $)<i class="fa-solid fa-circle-question tooltip-icon" data-tooltip="Volný peněžní tok. Čisté peníze, které firmě zbydou po zaplacení všech výdajů a investic do provozu. Tohle jsou skutečné peníze, které tvoří hodnotu firmy."></i></label>
+                            <input type="number" id="inputFcf" placeholder="Auto">
+                        </div>
+                        <div class="setting-group">
+                            <label>Růst 1–5 (%)<i class="fa-solid fa-circle-question tooltip-icon" data-tooltip="Jak rychle podle vás firma poroste v příštích 5 letech? U stabilních firem (Coca-Cola) to bývá 2-5 %, u rychle rostoucích technologických (Nvidia) klidně 15-30 %."></i></label>
+                            <input type="number" id="inputRust1" step="0.1" placeholder="Auto">
+                        </div>
+                        <div class="setting-group">
+                            <label>Růst 6–10 (%)<i class="fa-solid fa-circle-question tooltip-icon" data-tooltip="Růst firmy po 5 letech. Žádná firma nemůže růst raketově věčně, proto by toto číslo mělo být výrazně menší, obvykle něco mezi 2 a 10 %."></i></label>
+                            <input type="number" id="inputRust2" step="0.1" placeholder="Auto">
+                        </div>
+                        <div class="setting-group">
+                            <label>Diskont (%)<i class="fa-solid fa-circle-question tooltip-icon" data-tooltip="Požadovaný výnos (WACC). Kolik procent ročně chcete na investici vydělat. Pro většinu akcií se používá 10 %."></i></label>
+                            <input type="number" id="inputWacc" value="10" step="0.5">
+                        </div>
+                        <div class="setting-group">
+                            <label>Terminální (%)<i class="fa-solid fa-circle-question tooltip-icon" data-tooltip="Růst firmy navěky (po 10 letech). Neměl by přesáhnout běžný růst HDP. Doporučeno 2 až 3 %."></i></label>
+                            <input type="number" id="inputTerminal" value="2.5" step="0.1">
+                        </div>
+                        <div class="setting-group">
+                            <label>Polštář (%)<i class="fa-solid fa-circle-question tooltip-icon" data-tooltip="Margin of Safety. Polštář 20 % znamená, že koupíte akcii teprve tehdy, když je o 20 % levnější, než je její vypočítaná vnitřní hodnota. Je to Vaše ochrana před chybou."></i></label>
+                            <input type="number" id="inputMargin" value="20" step="1">
+                        </div>
+                        <div class="settings-actions">
+                            <button class="btn btn-primary btn-sm" id="btnRecalculateStock">Přepočítat</button>
+                            <button class="btn btn-secondary btn-sm" id="btnResetStock" title="Vrátit hodnoty z AI">
+                                <i class="fa-solid fa-rotate-left"></i> Reset
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Scénáře -->
+                    <div class="scenario-panel">
+                        <span class="scenario-label">Scénář:</span>
+                        <div class="scenario-buttons">
+                            <button class="btn btn-sm btn-secondary" id="btnBear">Bear (-5%)</button>
+                            <button class="btn btn-sm btn-secondary active" id="btnBase">Base (Výchozí)</button>
+                            <button class="btn btn-sm btn-secondary" id="btnBull">Bull (+5%)</button>
+                            <span class="scenario-sep">|</span>
+                            <button class="btn btn-sm btn-secondary" id="btnMinus1" title="Snížit růst o 1%">-1%</button>
+                            <button class="btn btn-sm btn-secondary" id="btnPlus1" title="Zvýšit růst o 1%">+1%</button>
+                        </div>
+                    </div>
+
+                    <!-- Graf -->
+                    <div class="valuation-chart-container hidden" id="valuationChartContainer">
+                        <div class="chart-labels">
+                            <span id="chartLabelDcf">DCF: $--</span>
+                            <span id="chartLabelPrice">Cena: $--</span>
+                        </div>
+                        <div class="chart-track">
+                            <div class="chart-bar-dcf" id="chartBarDcf"></div>
+                            <div class="chart-marker-price" id="chartMarkerPrice"></div>
+                        </div>
+                    </div>
+
+                    <!-- Modely ocenění -->
+                    <div class="valuation-cards">
+                        <div class="val-card">
+                            <div class="card-title">
+                                <i class="fa-solid fa-dollar-sign"></i> DCF Model
+                                <i class="fa-solid fa-circle-question tooltip-icon" data-tooltip="Diskontovaný peněžní tok. Zlatý standard Wall Street. Počítá hodnotu firmy čistě podle toho, kolik hotovosti (FCF) dokáže v budoucnu vydělat."></i>
+                            </div>
+                            <div class="card-value" id="detailDcfValue">$0.00</div>
+                            <div class="safe-value">S polštářem: <span id="detailDcfSafe">$0.00</span></div>
+                            <span id="detailDcfStatus" class="status-badge status-fair">Načítám</span>
+                        </div>
+
+                        <div class="val-card">
+                            <div class="card-title">
+                                <i class="fa-solid fa-scale-balanced"></i> Grahamova Hodnota
+                                <i class="fa-solid fa-circle-question tooltip-icon" data-tooltip="Model otce hodnotového investování a učitele Warrena Buffetta. Zaměřuje se na aktuální zisky a stav aktiv firmy. Skvělý konzervativní odhad pro stabilní firmy."></i>
+                            </div>
+                            <div class="card-value" id="detailGrahamValue">$0.00</div>
+                            <div class="safe-value">S polštářem: <span id="detailGrahamSafe">$0.00</span></div>
+                            <span id="detailGrahamStatus" class="status-badge status-fair">Načítám</span>
+                        </div>
+
+                        <div class="val-card">
+                            <div class="card-title">
+                                <i class="fa-solid fa-arrow-trend-up"></i> Peter Lynch (Růst)
+                                <i class="fa-solid fa-circle-question tooltip-icon" data-tooltip="Pohled legendárního investora Petera Lynche. Tvrdí, že férová hodnota akcie se odvíjí přesně od jejího růstu zisků. Výborné pro technologické a agresivní akcie, kde DCF nestíhá."></i>
+                            </div>
+                            <div class="card-value" id="detailLynchValue">$0.00</div>
+                            <div class="safe-value">S polštářem: <span id="detailLynchSafe">$0.00</span></div>
+                            <span id="detailLynchStatus" class="status-badge status-fair">Načítám</span>
+                        </div>
+
+                        <div class="val-card">
+                            <div class="card-title">
+                                <i class="fa-solid fa-coins"></i> Dividendový Model
+                                <i class="fa-solid fa-circle-question tooltip-icon" data-tooltip="Počítá hodnotu jen z budoucích dividend. Ideální pro staré dividendové firmy (např. Coca-Cola). Pokud firma dividendu nevyplácí, model nefunguje (to je normální)."></i>
+                            </div>
+                            <div class="card-value" id="detailDdmValue">$0.00</div>
+                            <div class="safe-value">S polštářem: <span id="detailDdmSafe">$0.00</span></div>
+                            <span id="detailDdmStatus" class="status-badge status-fair">Načítám</span>
+                        </div>
+                    </div>
+
+                    <!-- Finanční zdraví -->
+                    <div class="health-section">
+                        <h3 class="health-title"><i class="fa-solid fa-heart-pulse"></i> Finanční zdraví (Buffettovy ukazatele)</h3>
+                        <div class="health-grid">
+                            <div class="health-metric">
+                                <div class="metric-label">Návratnost (ROE) <i class="fa-solid fa-circle-question tooltip-icon" data-tooltip="Return on Equity. Ukazuje, jak dobře vedení firmy dokáže zhodnocovat peníze akcionářů. Cokoliv nad 15 % (zelená) je znakem skvělého byznysu."></i></div>
+                                <div class="metric-value" id="healthRoe">--</div>
+                            </div>
+                            <div class="health-metric">
+                                <div class="metric-label">Zadluženost (D/E) <i class="fa-solid fa-circle-question tooltip-icon" data-tooltip="Debt to Equity. Poměr celkových dluhů vůči majetku firmy. Číslo pod 1.0 (zelená) znamená bezpečný provoz bez přehnaných dluhů."></i></div>
+                                <div class="metric-value" id="healthDebt">--</div>
+                            </div>
+                            <div class="health-metric">
+                                <div class="metric-label">PEG Ratio <i class="fa-solid fa-circle-question tooltip-icon" data-tooltip="Porovnává cenu akcie s jejím růstem. Pokud je číslo pod 1.0 (zelená), akcie je extrémně levná vzhledem k tomu, jak obrovsky roste."></i></div>
+                                <div class="metric-value" id="healthPeg">--</div>
+                            </div>
+                            <div class="health-metric">
+                                <div class="metric-label">Likvidita (Current R.) <i class="fa-solid fa-circle-question tooltip-icon" data-tooltip="Current Ratio. Měří schopnost firmy splatit své krátkodobé dluhy. Číslo nad 1.5 (zelená) znamená dostatek hotovosti na účtech pro klidný provoz."></i></div>
+                                <div class="metric-value" id="healthCurrent">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Srovnávací tabulka -->
+                <section class="data-section glass-panel">
+                    <div class="section-header">
+                        <h3>Srovnávací Tabulka</h3>
+                        <button class="btn btn-secondary btn-sm" id="exportBtn">
+                            <i class="fa-solid fa-download"></i> Export CSV
+                        </button>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Akcie</th>
+                                    <th>Cena</th>
+                                    <th>DCF Hodnota</th>
+                                    <th>Grahamova H.</th>
+                                    <th>EPS</th>
+                                    <th>P/E</th>
+                                    <th>Závěr</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="dataTableBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Nastavení -->
+    <div class="modal-overlay hidden" id="settingsModal">
+        <div class="modal-content glass-panel">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-gear"></i> Globální Nastavení</h2>
+                <button class="btn-icon" id="btnCloseSettings"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc">Tyto hodnoty se použijí jako výchozí pro každou nově přidanou akcii.</p>
+                <div class="modal-settings-grid">
+                    <div class="setting-group">
+                        <label>Diskont (WACC) % <i class="fa-solid fa-circle-question tooltip-icon" data-tooltip="Požadovaný výnos. Kolik procent ročně chcete na investici vydělat. Pro většinu akcií se používá 10 %."></i></label>
+                        <input type="number" id="globalWacc" step="0.1">
+                    </div>
+                    <div class="setting-group">
+                        <label>Terminální růst % <i class="fa-solid fa-circle-question tooltip-icon" data-tooltip="Růst firmy navěky (po 10 letech). Neměl by přesáhnout běžný růst HDP. Doporučeno 2 až 3 %."></i></label>
+                        <input type="number" id="globalTerminal" step="0.1">
+                    </div>
+                    <div class="setting-group">
+                        <label>Bezpečnostní polštář % <i class="fa-solid fa-circle-question tooltip-icon" data-tooltip="Margin of Safety. Polštář 20 % znamená, že model Vám koupi schválí až tehdy, když je akcie ještě o 20 % levnější, než kolik vypočítal. Ochrana před chybou."></i></label>
+                        <input type="number" id="globalMargin" step="1">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="btnCancelSettings">Zrušit</button>
+                <button class="btn btn-primary" id="btnSaveSettings">Uložit nastavení</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
