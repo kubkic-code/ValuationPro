@@ -21,32 +21,43 @@ def ziskej_data_z_ai(nazev_firmy):
     prompt = f"""
     Uživatel zadal název firmy takto: "{nazev_firmy}". Zadaný název může obsahovat hrubé překlepy.
     Ignoruj překlepy, zjisti o jakou reálnou firmu se jedná a zjisti její burzovní ticker (u Berkshire Hathaway preferuj BRK.B).
-    Odhadni aktuální finanční data, pokud nemáš přesné informace.
     
-    Požadovaná data:
+    Tvá nejdůležitější role je analyzovat typ firmy pro náš oceňovací model:
+    Kategorie A: Technologické a růstové firmy (např. Nvidia, ASML, Alphabet). Hodnota je v růstu.
+    Kategorie B: Klasické hodnotové firmy a stabilní giganti (např. McDonald's, Coca-Cola, P&G, Johnson & Johnson). Stabilní růst, obří cashflow, silná značka.
+    Kategorie C: Těžký průmysl, komodity, automobilky, banky, těžaři (např. Volkswagen, JPMorgan). Růst je cyklický a nepředvídatelný.
+
+    Dále urči doporučenou diskontní míru (WACC) podle rizikovosti:
+    0.08 = Superstabilní monopolní giganti (Apple, ASML, Microsoft)
+    0.10 = Standardní zdravé firmy z indexu S&P 500
+    0.12 = Rizikovější, malé nebo silně zadlužené firmy
+
+    Požadovaná data (odhadni, pokud neznáš přesně):
     1. Aktuální tržní cena akcie
     2. Výchozí Free Cash Flow (FCF) v milionech
-    3. Očekávaná míra růstu - Fáze 1 jako desetinné číslo (např. 0.15)
-    4. Míra růstu - Fáze 2 jako desetinné číslo (např. 0.10)
-    5. Čistý dluh v milionech
-    6. Počet akcií v oběhu v milionech
-    7. Čistý zisk na akcii (EPS TTM)
-    8. Očekávaná míra růstu zisku pro Grahama (desetinné číslo, např. 0.15 pro 15%)
-    9. Aktuální výnos AAA dluhopisů jako desetinné číslo (např. 0.04)
+    3. Očekávaný růst 1-5 let: Vezmi konsenzus analytiků pro růst zisků a VYNÁSOB HO KOEFICIENTEM 0.8 (20% bezpečnostní srážka). Vrať desetinné číslo.
+    4. Čistý dluh v milionech
+    5. Počet akcií v oběhu v milionech
+    6. Čistý zisk na akcii (EPS TTM)
+    7. Book Value Per Share (BVPS) - účetní hodnota na akcii (velmi důležité pro Kategorii C)
+    8. Historické průměrné P/E za posledních 5 let
+    9. Zadej Kategorii Firmy jako řetězec: "A", "B", nebo "C"
+    10. Doporučené WACC (0.08, 0.10, nebo 0.12)
 
     Odpověz STRIKTNĚ ve formátu JSON s těmito klíči:
     {{
         "skutecny_nazev": "",
         "ticker": "",
+        "kategorie": "A",
+        "wacc": 0.10,
         "cena_akcie": 0.0,
         "fcf": 0.0,
         "rust_1_5": 0.0,
-        "rust_6_10": 0.0,
         "net_debt": 0.0,
         "shares_outstanding": 0.0,
         "eps": 0.0,
-        "graham_g": 0.0,
-        "aaa_yield": 0.0
+        "bvps": 0.0,
+        "historical_pe": 0.0
     }}
     """
 
@@ -63,13 +74,12 @@ def ziskej_data_z_ai(nazev_firmy):
 
 def vypocet_dcf(data, wacc=0.10, terminal_growth=0.025, margin_of_safety=0.20):
     """
-    Výpočet DCF. data musí obsahovat: fcf, rust_1_5, rust_6_10, net_debt, shares_outstanding
-    Vrací slovník s DCF hodnotou a hodnotou s polštářem.
+    Výpočet DCF.
     """
     try:
         fcf = float(data.get("fcf", 0))
         rust_1 = float(data.get("rust_1_5", 0))
-        rust_2 = float(data.get("rust_6_10", 0))
+        rust_2 = terminal_growth # Pevně uzamčeno
         net_debt = float(data.get("net_debt", 0))
         shares = float(data.get("shares_outstanding", 0))
         
@@ -110,27 +120,24 @@ def vypocet_dcf(data, wacc=0.10, terminal_growth=0.025, margin_of_safety=0.20):
         print(f"Chyba při DCF: {e}")
         return {"value": 0, "safe_value": 0}
 
+import math
+
 def vypocet_graham(data, margin_of_safety=0.20):
     """
-    Výpočet podle Benjamina Grahama. V = (EPS * (8.5 + 2g) * 4.4) / Y
+    Výpočet podle Benjamina Grahama (Grahamovo číslo). V = sqrt(22.5 * EPS * BVPS)
     """
     try:
         eps = float(data.get("eps", 0))
-        # Převod g z desetinného čísla zpět na procenta pro tento vzorec (např. 0.15 -> 15)
-        # Někdy AI vrátí už celé číslo, ošetříme to:
-        g_raw = float(data.get("graham_g", 0))
-        g = g_raw * 100 if g_raw < 1 else g_raw 
+        bvps = float(data.get("bvps", 0))
         
-        y = float(data.get("aaa_yield", 0.04))
-        y = y * 100 if y < 1 else y # převod na procenta, vzorec bere např. 4.4 % jako 4.4, někdy jako 0.044, standard je Y v procentech
-        
-        if y <= 0: y = 4.4 # fallback
-        
-        intrinsic_value = (eps * (8.5 + 2 * g) * 4.4) / y
+        if eps <= 0 or bvps <= 0:
+            return {"value": 0, "safe_value": 0}
+            
+        intrinsic_value = math.sqrt(22.5 * eps * bvps)
         
         return {
-            "value": max(0, intrinsic_value),
-            "safe_value": max(0, intrinsic_value * (1 - margin_of_safety))
+            "value": intrinsic_value,
+            "safe_value": intrinsic_value * (1 - margin_of_safety)
         }
     except Exception as e:
         print("Chyba při výpočtu Grahama:", e)
@@ -160,29 +167,26 @@ def vypocet_lynch(data, margin_of_safety=0.20):
         print("Chyba při výpočtu Lynchova modelu:", e)
         return {"value": 0, "safe_value": 0}
 
-def vypocet_ddm(data, wacc=0.10, margin_of_safety=0.20):
+def vypocet_historical_pe(data, margin_of_safety=0.20):
     """
-    Dividend Discount Model (Gordon Growth Model)
-    Hodnota = Dividenda * (1 + Růst) / (Diskontní sazba - Růst)
+    Ocenění pomocí Historického P/E (pro Typ C firmy)
+    Hodnota = EPS * Historické P/E
     """
     try:
-        div = float(data.get("dividend", 0))
-        # DDM funguje jen pro stabilní, pomalejší růst, obvykle terminální
-        rust_div = float(data.get("rust_6_10", 0)) 
-        if rust_div >= wacc: 
-            rust_div = wacc - 0.01 # Matematická ochrana
-            
-        if div <= 0:
+        eps = float(data.get("eps", 0))
+        pe = float(data.get("historical_pe", 0))
+        
+        if eps <= 0 or pe <= 0:
             return {"value": 0, "safe_value": 0}
             
-        intrinsic_value = (div * (1 + rust_div)) / (wacc - rust_div)
+        intrinsic_value = eps * pe
         
         return {
             "value": max(0, intrinsic_value),
             "safe_value": max(0, intrinsic_value * (1 - margin_of_safety))
         }
     except Exception as e:
-        print("Chyba při výpočtu DDM:", e)
+        print("Chyba při výpočtu Historického P/E:", e)
         return {"value": 0, "safe_value": 0}
 
 # --- ROUTES ---
@@ -194,6 +198,16 @@ def index():
 @app.route('/<path:path>')
 def static_files(path):
     return send_from_directory('.', path)
+
+@app.route('/api/test_yf')
+def test_yf():
+    import yfinance as yf
+    info = yf.Ticker("PAH3.DE").info
+    return jsonify({
+        "shortName": info.get("shortName"),
+        "longName": info.get("longName"),
+        "has_info": bool(info)
+    })
 
 @app.route('/api/search', methods=['GET'])
 def search_ticker():
@@ -212,7 +226,8 @@ def search_ticker():
             if q.get('quoteType') in ['EQUITY', 'ETF'] and 'shortname' in q and 'symbol' in q:
                 results.append({
                     "symbol": q['symbol'],
-                    "name": q['shortname']
+                    "name": q['shortname'],
+                    "exchange": q.get('exchDisp') or q.get('exchange', '')
                 })
         return jsonify(results[:6])
     except Exception as e:
@@ -246,11 +261,23 @@ def analyze():
             AI_CACHE[ticker_upper] = ai_data.copy()
         
         # FIX: Přepíšeme AI halucinace REÁLNÝMI daty z trhu přes Yahoo Finance
-        skutecny_ticker = ai_data.get("ticker", ticker_upper)
+        skutecny_ticker = ticker_upper
         try:
             print(f"Stahuji reálná tržní data pro ticker {skutecny_ticker} z Yahoo Finance...")
             yf_ticker = yf.Ticker(skutecny_ticker)
             info = yf_ticker.info
+            
+            # Pokud zadaný ticker zřejmě neexistuje, zkusíme ten od AI
+            if not info or not info.get("shortName"):
+                skutecny_ticker = ai_data.get("ticker", ticker_upper)
+                print(f"Původní ticker selhal, zkouším AI odhadovaný ticker {skutecny_ticker}...")
+                yf_ticker = yf.Ticker(skutecny_ticker)
+                info = yf_ticker.info
+                
+            if not info or not info.get("shortName"):
+                raise ValueError(f"Akcie s tickerem '{ticker_upper}' nebyla nalezena. Zkontrolujte, zda je symbol správný.")
+
+            ai_data["ticker"] = skutecny_ticker
             
             # Nahrazení odhadů reálnými čísly
             if info.get("shortName"):
@@ -264,13 +291,20 @@ def analyze():
             if info.get("sharesOutstanding"): 
                 ai_data["shares_outstanding"] = info.get("sharesOutstanding") / 1000000 # převod na miliony
                 
-            if info.get("freeCashflow"): 
-                ai_data["fcf"] = info.get("freeCashflow") / 1000000
+            yf_fcf = info.get("freeCashflow")
+            if yf_fcf is not None and yf_fcf > 0: 
+                ai_data["fcf"] = yf_fcf / 1000000
                 
             if info.get("totalDebt"): 
                 # Pro přesnost bychom odečetli i cash, ale totalDebt je dobrý výchozí bod
                 cash = info.get("totalCash", 0)
                 ai_data["net_debt"] = (info.get("totalDebt") - cash) / 1000000
+                
+            if info.get("bookValue"):
+                ai_data["bvps"] = info.get("bookValue")
+            
+            if not ai_data.get("historical_pe") and info.get("trailingPE"):
+                ai_data["historical_pe"] = info.get("trailingPE")
                 
             # Finanční zdraví (Buffettovy ukazatele) a Dividendy
             ai_data["dividend"] = info.get("dividendRate", 0)
@@ -286,9 +320,31 @@ def analyze():
                 ai_data["report_date"] = datetime.fromtimestamp(mrq).strftime('%d. %m. %Y')
             else:
                 ai_data["report_date"] = "Neznámé datum"
+            
+            ai_data["currency"] = info.get("currency", "USD")
                 
         except Exception as e:
             print(f"Chyba při stahování Yahoo Finance dat: {e}. Použijí se odhady z AI.")
+            
+        # Konverze měn
+        target_currency = req_data.get("targetCurrency", "ORIGINAL")
+        if target_currency and target_currency != "ORIGINAL" and ai_data.get("currency") and target_currency != ai_data.get("currency"):
+            try:
+                base_curr = ai_data["currency"]
+                pair = f"{base_curr}{target_currency}=X"
+                rate_ticker = yf.Ticker(pair)
+                rate = rate_ticker.info.get("currentPrice") or rate_ticker.info.get("regularMarketPrice") or rate_ticker.info.get("previousClose")
+                
+                if rate:
+                    if "cena_akcie" in ai_data: ai_data["cena_akcie"] *= rate
+                    if "fcf" in ai_data: ai_data["fcf"] *= rate
+                    if "net_debt" in ai_data: ai_data["net_debt"] *= rate
+                    if "eps" in ai_data: ai_data["eps"] *= rate
+                    if "bvps" in ai_data: ai_data["bvps"] *= rate
+                    if "dividend" in ai_data: ai_data["dividend"] *= rate
+                    ai_data["currency"] = target_currency
+            except Exception as e:
+                print(f"Chyba při konverzi měn: {e}")
             
         # Aplikování uživatelských přepisů z frontendu, pokud je uživatel zadal
         if custom_fcf is not None:
@@ -297,22 +353,53 @@ def analyze():
             ai_data["rust_1_5"] = float(custom_rust1) / 100.0
         if custom_rust2 is not None:
             ai_data["rust_6_10"] = float(custom_rust2) / 100.0
-        
+            
+        custom_kategorie = req_data.get("customKategorie")
+        if custom_kategorie and custom_kategorie in ["A", "B", "C"]:
+            ai_data["kategorie"] = custom_kategorie
+            
         # Vypočítáme modely
         dcf_result = vypocet_dcf(ai_data, wacc, terminal_growth, margin_safety)
         graham_result = vypocet_graham(ai_data, margin_safety)
         lynch_result = vypocet_lynch(ai_data, margin_safety)
-        ddm_result = vypocet_ddm(ai_data, wacc, margin_safety)
+        hist_pe_result = vypocet_historical_pe(ai_data, margin_safety)
+        
+        # Triangulace - Vážený průměr
+        kategorie = ai_data.get("kategorie", "B").upper().strip()
+        if kategorie not in ["A", "B", "C"]: kategorie = "B"
+
+        blended_value = 0
+        graham_failed = graham_result["value"] <= 0
+
+        if kategorie == "A":
+            blended_value = 0.70 * dcf_result["value"] + 0.30 * lynch_result["value"]
+        elif kategorie == "B":
+            if graham_failed:
+                # Krizové pravidlo: Grahamova váha (30 %) přelita na Historické P/E
+                blended_value = 0.50 * dcf_result["value"] + 0.20 * lynch_result["value"] + 0.30 * hist_pe_result["value"]
+            else:
+                blended_value = 0.50 * dcf_result["value"] + 0.20 * lynch_result["value"] + 0.30 * graham_result["value"]
+        elif kategorie == "C":
+            if graham_failed:
+                # Krizové pravidlo: Grahamova váha (60 %) přelita na Historické P/E
+                blended_value = hist_pe_result["value"]
+            else:
+                blended_value = 0.60 * graham_result["value"] + 0.40 * hist_pe_result["value"]
+            
+        blended_safe_value = blended_value * (1 - margin_safety)
         
         # Sestavíme odpověď pro frontend
         result = {
             "ticker": ai_data.get("ticker", ticker_upper),
             "name": ai_data.get("skutecny_nazev", ticker_upper),
+            "kategorie": kategorie,
+            "recommended_wacc": ai_data.get("wacc", 0.10) * 100,
+            "currency": ai_data.get("currency", "USD"),
             "price": ai_data.get("cena_akcie", 0),
             "eps": ai_data.get("eps", 0),
             "fcf": ai_data.get("fcf", 0),
             "rust_1_5": ai_data.get("rust_1_5", 0) * 100, # převod zpět na % pro UI
-            "rust_6_10": ai_data.get("rust_6_10", 0) * 100,
+            "rust_6_10": 2.5, # Zafixováno
             
             "report_date": ai_data.get("report_date", "Neznámé datum"),
             
@@ -326,14 +413,17 @@ def analyze():
             # Aproximace P/E
             "pe": round(ai_data.get("cena_akcie", 0) / ai_data.get("eps", 1), 2) if ai_data.get("eps", 0) > 0 else 0,
             
+            "blendedValue": blended_value,
+            "blendedSafeValue": blended_safe_value,
+            
             "dcfValue": dcf_result["value"],
             "dcfSafeValue": dcf_result["safe_value"],
             "grahamValue": graham_result["value"],
             "grahamSafeValue": graham_result["safe_value"],
             "lynchValue": lynch_result["value"],
             "lynchSafeValue": lynch_result["safe_value"],
-            "ddmValue": ddm_result["value"],
-            "ddmSafeValue": ddm_result["safe_value"]
+            "histPeValue": hist_pe_result["value"],
+            "histPeSafeValue": hist_pe_result["safe_value"]
         }
         
         return jsonify(result)
@@ -341,6 +431,30 @@ def analyze():
     except Exception as e:
         print(f"Chyba v API: {e}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/market-health', methods=['GET'])
+def get_market_health():
+    """Vrátí aktuální data o stavu trhu (VIX a S&P 500 P/E)"""
+    try:
+        # VIX
+        vix_ticker = yf.Ticker("^VIX")
+        vix_hist = vix_ticker.history(period="1d")
+        vix_value = vix_hist['Close'].iloc[-1] if not vix_hist.empty else 20.0
+
+        # SPY (S&P 500 ETF) P/E
+        spy = yf.Ticker("SPY")
+        spy_pe = spy.info.get('trailingPE')
+        if not spy_pe:
+            spy_pe = 22.0 # Očekávaný hrubý průměr jako fallback
+
+        return jsonify({
+            "vix": round(float(vix_value), 2),
+            "spy_pe": round(float(spy_pe), 2)
+        })
+    except Exception as e:
+        print(f"Chyba při stahování market health: {e}")
+        # Bezpečný fallback, pokud by yfinance z nějakého důvodu selhalo
+        return jsonify({"vix": 20.0, "spy_pe": 22.0}), 200
 
 if __name__ == '__main__':
     print("Spouštím backendový server na http://127.0.0.1:5000")
