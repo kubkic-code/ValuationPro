@@ -1,0 +1,21 @@
+# Virtuální prostředí
+venv/
+env/
+.env
+.venv/
+env.bak/
+venv.bak/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
