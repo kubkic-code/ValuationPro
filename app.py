@@ -5,13 +5,18 @@ import requests
 from flask import Flask, request, jsonify, send_from_directory
 from groq import Groq
 import yfinance as yf
+from dotenv import load_dotenv
+
+# Načtení proměnných prostředí z .env souboru (pokud existuje)
+load_dotenv()
 
 # NASTAVENÍ A INICIALIZACE
 app = Flask(__name__, static_folder='.')
 
-# Načtení API klíče ze systémových proměnných (pro produkci) 
-# s fallbackem na natvrdo zapsaný klíč (pro lokální testování).
-API_KEY = os.environ.get("GROQ_API_KEY", "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")
+# Načtení API klíče ze systémových proměnných
+API_KEY = os.environ.get("GROQ_API_KEY")
+if not API_KEY:
+    raise ValueError("Chybí GROQ_API_KEY v proměnných prostředí. Vytvořte soubor .env nebo nastavte systémovou proměnnou.")
 client = Groq(api_key=API_KEY)
 
 # Cache pro AI odpovědi, abychom zamezili neustálým změnám odhadů (halucinacím)

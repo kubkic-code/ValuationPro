@@ -88,10 +88,9 @@ Projekt je rozdělen na backend v Pythonu a moderní frontend napsaný v čisté
    ```
 
 3. **Nastavte API klíč:**
-   Aplikace hledá klíč v systémové proměnné `GROQ_API_KEY`. Pokud není nalezena, použije fallback uvedený v kódu (doporučeno změnit na vlastní!).
-   ```bash
-   # Windows (PowerShell)
-   $env:GROQ_API_KEY="vas_klic_zde"
+   Vytvořte v kořenovém adresáři soubor `.env` (můžete zkopírovat z `.env.example`) a vložte do něj svůj API klíč z Groq:
+   ```env
+   GROQ_API_KEY=vas_klic_zde
    ```
 
 4. **Spusťte server:**
